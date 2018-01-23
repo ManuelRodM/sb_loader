@@ -81,7 +81,26 @@
 
 #define ROM_ECC_SIZE_ALIGN 0x400
 
+#define IH_MAGIC	0x27051956	/* Image Magic Number		*/
+#define IH_NMLEN		32	/* Image Name Length		*/
+
 // Address ranges for Production parts: 
+
+typedef struct image_header {
+	uint32_t	ih_magic;	/* Image Header Magic Number	*/
+	uint32_t	ih_hcrc;	/* Image Header CRC Checksum	*/
+	uint32_t	ih_time;	/* Image Creation Timestamp	*/
+	uint32_t	ih_size;	/* Image Data Size		*/
+	uint32_t	ih_load;	/* Data	 Load  Address		*/
+	uint32_t	ih_ep;		/* Entry Point Address		*/
+	uint32_t	ih_dcrc;	/* Image Data CRC Checksum	*/
+	uint8_t		ih_os;		/* Operating System		*/
+	uint8_t		ih_arch;	/* CPU architecture		*/
+	uint8_t		ih_type;	/* Image Type			*/
+	uint8_t		ih_comp;	/* Compression Type		*/
+	uint8_t		ih_name[IH_NMLEN];	/* Image Name		*/
+} image_header_t;
+
 
 /// <summary>
 /// A MxHidDevice device.
@@ -147,6 +166,8 @@ public:
 		unsigned long long	ImageEntry;
 		unsigned long		ImageSize;
 		unsigned long		ImageFlag;
+		unsigned long		flag1;
+		unsigned long		flag2;
 	}SubImageInfo;
 
 	typedef struct _BootDataV2
@@ -214,6 +235,7 @@ public:
 		PIvtHeader pIVT;
 		unsigned int Addr;
 		unsigned int Value;
+		unsigned int offset;
 	}MxFunc, *PMxFunc;
 
 	
@@ -229,15 +251,21 @@ public:
 	//int GetRKLVersion(CString& fmodel, int& len, int& mxType);
 	BOOL InitMemoryDevice(MemoryType MemType);
 	//BOOL ProgramFlash(std::ifstream& file, UINT address, UINT cmdID, UINT flags, Device::UI_Callback callback);
+	BOOL LoadFirmware(UCHAR *pBuffer, ULONGLONG dataCount, PMxFunc pMxFunc)
+	{
+		return m_IsFitImage ? LoadFitImage(pBuffer + pMxFunc->ImageParameter.CodeOffset, dataCount - pMxFunc->ImageParameter.CodeOffset, pMxFunc) 
+							: Download(pBuffer + pMxFunc->ImageParameter.CodeOffset, dataCount - pMxFunc->ImageParameter.CodeOffset, pMxFunc->ImageParameter.PhyRAMAddr4KRL);
+	}
 	BOOL Download(UCHAR* pBuffer, ULONGLONG dataCount, UINT RAMAddress);
 	BOOL Execute(UINT32 ImageStartAddr);
 	BOOL Jump(UINT RAMAddress);
 	BOOL RegRead(UINT address, UINT *value);
 	BOOL RegWrite(UINT address, UINT value);
 	BOOL SkipDCD();
-	DWORD GetIvtOffset(DWORD *start, ULONGLONG dataCount);
+	DWORD GetIvtOffset(DWORD *start, ULONGLONG dataCount, DWORD begin=0);
 	BOOL RunMxMultiImg(UCHAR* pBuffer, ULONGLONG dataCount);
 	BOOL MxHidDevice::RunPlugIn(UCHAR* pBuffer, ULONGLONG dataCount, PMxFunc pMxFunc);
+	BOOL LoadFitImage(UCHAR *fit, ULONGLONG dataCount, PMxFunc pMxFunc);
 
 	unsigned long long SCUViewAddr(unsigned long long addr)
 	{
@@ -319,5 +347,6 @@ private:
 	HAB_t _habType;
 	//unsigned char _pSDPCmdBuf[SDP_REPORT_LENGTH];
 	enum ChannelType { ChannelType_UART = 0, ChannelType_USB };
+	BOOL m_IsFitImage;
 };
 #endif //  __MXHIDDEVICE_H__
